@@ -1,18 +1,39 @@
 from fastapi import FastAPI
-# from starlette.responses import StreamingResponse
+from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-# from fastapi.responses import StreamingResponse,JSONResponse
 import uvicorn
 import json
+
+from config import get_settings
 from llm import VLLM
 from dataStruct import VLLMRequest,APIRequest
 from utils import get_current_time
 
-llm = VLLM(MODEL_ID="/media/cara/文档/PythonProjects/models/llm/qwen/Qwen2-7B-Instruct")
+settings = get_settings()
 app = FastAPI()
+llm = None
+
+
+def get_llm() -> VLLM:
+    """Lazily initialize the vLLM engine on first generation request."""
+    global llm
+    if llm is None:
+        llm = VLLM(settings)
+    return llm
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "model_id": settings.model_id,
+        "engine_loaded": llm is not None,
+    }
 
 @app.post("/generate/")
 async def generate_text(data: APIRequest):
+    if not data.message:
+        raise HTTPException(status_code=400, detail="message must not be empty")
     if data.message[-1].role == "user":
         vllmRequest = VLLMRequest(**{
                                         "request_id": data.request_id,
@@ -20,7 +41,7 @@ async def generate_text(data: APIRequest):
                                         "prompt": data.message[-1].content
                                     })
     else:
-        raise RuntimeError(f"API request data.message[-1].role is not a user")
+        raise HTTPException(status_code=400, detail="last message role must be user")
     headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
@@ -28,7 +49,7 @@ async def generate_text(data: APIRequest):
     }
 
     async def generator():
-        async for chunk in llm.generate(data=vllmRequest):
+        async for chunk in get_llm().generate(data=vllmRequest):
             chunk["fastAPI_accept_chunk_time"] = get_current_time()
             print(f"fastapi chunk: {chunk}")
             yield f"{json.dumps(chunk, ensure_ascii=False)}\n"
@@ -40,4 +61,4 @@ async def generate_text(data: APIRequest):
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=8080)
+    uvicorn.run(app, host=settings.host, port=settings.port)

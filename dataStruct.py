@@ -1,26 +1,24 @@
-from pydantic import BaseModel
-from typing import List,Dict,Literal
+from pydantic import BaseModel, ConfigDict
+from typing import List, Literal
 
 
 class Message(BaseModel):
-    role:Literal["user", "assistant", "system"]
-    content:str
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(extra="ignore")
+
+    role: Literal["user", "assistant", "system"]
+    content: str
 
 class APIRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     request_id: str
     request_time: str
     message: List[Message]
-    class Config:
-        extra = "ignore"
 
 
 class VLLMRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     request_id: str
     request_time: str
     prompt: str
-
-    class Config:
-        extra = "ignore"
-

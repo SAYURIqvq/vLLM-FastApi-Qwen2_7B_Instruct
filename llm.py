@@ -1,28 +1,29 @@
 import uuid
-# from vllm import AsyncEngineArgs, AsyncLLMEngine, SamplingParams
-from vllm import SamplingParams
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.engine.async_llm_engine import AsyncLLMEngine
 import asyncio
 from typing import AsyncGenerator
-import json
+
+from config import Settings
 from utils import get_current_time
 from dataStruct import VLLMRequest
 
 class VLLM:
-    def __init__(self, MODEL_ID: str) -> None:
-        self.MODEL_ID = MODEL_ID
-        self.MAX_TOKENS = 1024
-        ENGINE_ARGS = AsyncEngineArgs(
-            model=self.MODEL_ID,
-            max_model_len=self.MAX_TOKENS,
-            tensor_parallel_size=1,
-            gpu_memory_utilization=0.90,
+    def __init__(self, settings: Settings) -> None:
+        from vllm import SamplingParams
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+
+        self.settings = settings
+        self.SamplingParams = SamplingParams
+        engine_args = AsyncEngineArgs(
+            model=settings.model_id,
+            max_model_len=settings.max_tokens,
+            tensor_parallel_size=settings.tensor_parallel_size,
+            gpu_memory_utilization=settings.gpu_memory_utilization,
             enforce_eager=False,  # capture the graph for faster inference, but slower cold starts
             disable_log_stats=True,  # disable logging so we can stream tokens
             disable_log_requests=True,
         )
-        self.engine = AsyncLLMEngine.from_engine_args(ENGINE_ARGS)
+        self.engine = AsyncLLMEngine.from_engine_args(engine_args)
 
     def build_prompt(self,user_prompt:str) -> str:
         PROMPT_TEMPLATE = """你是一个人工智能助手，擅长根据用户提供的资料来回答用户的问题。
@@ -33,17 +34,17 @@ class VLLM:
         return prompt
 
     async def generate(self, data:VLLMRequest) -> AsyncGenerator[str, None]:
-        SAMPLING_PARAM = SamplingParams(
-            max_tokens=self.MAX_TOKENS,
+        sampling_param = self.SamplingParams(
+            max_tokens=self.settings.max_tokens,
             frequency_penalty=1.0,
-            temperature=0.1,
+            temperature=self.settings.temperature,
             seed=42,
             skip_special_tokens=True,
             length_penalty=1.0,
 
         )
         prompt = self.build_prompt(user_prompt=data.prompt)
-        llm_output = await self.engine.add_request(uuid.uuid4().hex, prompt, SAMPLING_PARAM)
+        llm_output = await self.engine.add_request(uuid.uuid4().hex, prompt, sampling_param)
         cursor = 0
         async for request_output in llm_output:
             text = request_output.outputs[0].text
@@ -61,6 +62,5 @@ class VLLM:
             yield output
             cursor = len(text)
             await asyncio.sleep(0.01)
-
 
 

@@ -67,13 +67,33 @@ pip install -r requirements.txt
 ## 启动服务
 
 ```bash
+MODEL_ID=Qwen/Qwen2-7B-Instruct \
+MAX_TOKENS=1024 \
+TENSOR_PARALLEL_SIZE=1 \
+GPU_MEMORY_UTILIZATION=0.90 \
 python main.py
 ```
 
 或使用 uvicorn：
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
+MODEL_ID=Qwen/Qwen2-7B-Instruct uvicorn main:app --host 0.0.0.0 --port 8080
+```
+
+运行时配置通过环境变量管理，默认不再绑定个人本机模型路径：
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `MODEL_ID` | `Qwen/Qwen2-7B-Instruct` | Hugging Face 模型 ID 或本地模型目录 |
+| `MAX_TOKENS` | `1024` | 最大上下文/生成 token 配置 |
+| `TENSOR_PARALLEL_SIZE` | `1` | vLLM tensor parallel 数量 |
+| `GPU_MEMORY_UTILIZATION` | `0.90` | vLLM 显存使用比例 |
+| `TEMPERATURE` | `0.1` | 采样温度 |
+
+健康检查：
+
+```bash
+curl http://127.0.0.1:8080/health
 ```
 
 ---
